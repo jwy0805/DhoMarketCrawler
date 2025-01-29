@@ -59,6 +59,16 @@ if len(posts) > 0 :
                     print("===")
                     break
 
+        elif post_type == "both":
+            for sender, banned_authors, keyword in order_dict["both"]:
+                if post_detail.author in banned_authors:
+                    continue
+
+
+
+
+
+
 
 # while True:
 #     posts = get_new_post_links(last_title)
