@@ -1,30 +1,7 @@
 ﻿import requests
 from bs4 import BeautifulSoup
-
-class Post:
-    def __init__(self, title, link):
-        self.title = title
-        self.link = link
-
-class PostDetail:
-    def __init__(self, title, author, content):
-        self.title = title
-        self.author = author
-        self.content = content
-
-def get_board_links(page_num):
-    url = f"https://m.inven.co.kr/board/dho/533?p={page_num}"  # 실제 목록 페이지 주소
-    response = requests.get(url)
-    response.raise_for_status()
-    soup = BeautifulSoup(response.text, "html.parser")
-    anchors = soup.select("section.mo-board-list ul li.list div.li-wrap")
-
-    links = []
-    for link_tag in anchors:
-        link = link_tag.get("href")
-        links.append(link)
-
-    return links
+from data_model import Post, PostDetail, LabeledText
+from analyzer import buy_keywords, sell_keywords, over_keywords, both_keywords
 
 def get_new_post_links(last_title=""):
     url = "https://m.inven.co.kr/board/dho/533"
@@ -47,8 +24,8 @@ def get_new_post_links(last_title=""):
             post = Post(title, link)
             post_list.append(post)
 
-    reversed_list = list(reversed(post_list))
-    return reversed_list
+    reversed_post_list = list(reversed(post_list))
+    return reversed_post_list
 
 def crawl_detail_page(detail_url):
     response = requests.get(detail_url)
@@ -76,14 +53,15 @@ def get_content(soup):
 
     lines = []
 
-    main_text = content_tag.get_text(separator=" ", strip=True)
-    if main_text:
-        lines.append(main_text)
+    main_text = "".join(content_tag.find_all(text=True, recursive=False)).strip()
+    if main_text and len(main_text) < 50:
+        lines.append(main_text.replace(" ", ""))
 
     for tag in content_tag.find_all(["div", "p", "br"], recursive=True):
         text = tag.get_text(separator=" ", strip=True)
-        if text:
-            lines.append(text)
+        if text and len(text) < 50:
+            lines.append(text.replace(" ", ""))
+
     return lines
 
 def remove_server_tag_from_title(title_tag):
@@ -91,3 +69,26 @@ def remove_server_tag_from_title(title_tag):
         span_tag = title_tag.select_one("span.in-cate")
         if span_tag:
             span_tag.decompose()
+
+def label_each_text(content):
+    labeled_text_list = []
+    state = "none"
+
+    for text in content:
+        if any(keyword in text for keyword in buy_keywords):
+            state = "buy"
+            continue
+        elif any(keyword in text for keyword in sell_keywords):
+            state = "sell"
+            continue
+        else:
+            if state == "buy":
+                labeled_text = LabeledText(text, "buy")
+            elif state == "sell":
+                labeled_text = LabeledText(text, "sell")
+            else:
+                labeled_text = LabeledText(text, "none")
+
+            labeled_text_list.append(labeled_text)
+
+    return labeled_text_list
